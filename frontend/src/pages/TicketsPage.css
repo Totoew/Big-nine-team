@@ -324,6 +324,32 @@
   min-width: 0;
 }
 
+.crm-form-pane {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.crm-vert-resize-handle {
+  height: 5px;
+  flex-shrink: 0;
+  background: #e0eeff;
+  cursor: row-resize;
+  transition: background 0.15s;
+}
+
+.crm-vert-resize-handle:hover,
+.crm-vert-resize-handle:active {
+  background: #2563eb;
+}
+
+.crm-chat-pane {
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 .crm-loading {
   display: flex;
   align-items: center;

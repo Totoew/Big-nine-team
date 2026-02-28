@@ -1,11 +1,13 @@
 import './TicketsList.css';
 
 const STATUS_ICON = {
-  open: { icon: '👤', label: 'Нужна помощь' },
+  open: { icon: '🆕', label: 'Открыто' },
   in_progress: { icon: '⏳', label: 'В процессе' },
-  needs_operator: { icon: '🆘', label: 'Нужен оператор' },
+  needs_operator: { icon: '⏳', label: 'В процессе' },
   closed: { icon: '✅', label: 'Закрыто' },
 };
+
+const CRITICAL_CATEGORIES = ['malfunction', 'breakdown'];
 
 function fmt(dateStr) {
   return new Date(dateStr).toLocaleString('ru-RU', {
@@ -55,10 +57,9 @@ export default function TicketsList({ tickets, selectedId, onSelect, filters, on
             onChange={(e) => onFilterChange('status', e.target.value)}
           >
             <option value="">Все статусы</option>
-            <option value="open">Новая</option>
-            <option value="in_progress">В работе</option>
-            <option value="needs_operator">Нужен оператор</option>
-            <option value="closed">Закрыта</option>
+            <option value="open">Открыто</option>
+            <option value="in_progress">В процессе</option>
+            <option value="closed">Закрыто</option>
           </select>
           <select
             className="tickets-filter-select"
@@ -79,7 +80,7 @@ export default function TicketsList({ tickets, selectedId, onSelect, filters, on
             <option value="malfunction">Неисправность</option>
             <option value="calibration">Калибровка</option>
             <option value="documentation">Документация</option>
-            <option value="other">Прочее</option>
+            <option value="breakdown">Поломка</option>
           </select>
         </div>
       </div>
@@ -90,10 +91,11 @@ export default function TicketsList({ tickets, selectedId, onSelect, filters, on
         ) : (
           tickets.map((ticket) => {
             const status = STATUS_ICON[ticket.status] || STATUS_ICON.open;
+            const isCritical = CRITICAL_CATEGORIES.includes(ticket.category);
             return (
               <div
                 key={ticket.id}
-                className={`ticket-card ${selectedId === ticket.id ? 'ticket-card--active' : ''}`}
+                className={`ticket-card ${selectedId === ticket.id ? 'ticket-card--active' : ''} ${isCritical ? 'ticket-card--critical' : ''}`}
                 onClick={() => onSelect(ticket)}
               >
                 <div className="ticket-card-main">

@@ -97,6 +97,70 @@
   gap: 6px;
 }
 
+/* ── Inline editing ──────────────────────────── */
+.tf-value-cell--editable {
+  cursor: pointer;
+}
+
+.tf-value-cell--editable:hover {
+  background: #eff6ff !important;
+}
+
+.tf-editable-value::after {
+  content: ' ✏';
+  font-size: 10px;
+  color: #bfdbfe;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.tf-value-cell--editable:hover .tf-editable-value::after {
+  opacity: 1;
+}
+
+.tf-value-cell--editing {
+  padding: 4px 6px !important;
+  cursor: default;
+}
+
+.tf-edit-input {
+  width: 100%;
+  border: 1.5px solid #3b82f6;
+  border-radius: 5px;
+  padding: 5px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #1e293b;
+  outline: none;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.tf-edit-textarea {
+  min-height: 80px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.tf-edit-select {
+  width: 100%;
+  border: 1.5px solid #3b82f6;
+  border-radius: 5px;
+  padding: 5px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #1e293b;
+  outline: none;
+  background: #fff;
+  cursor: pointer;
+}
+
+.tf-empty {
+  color: #cbd5e1;
+  font-style: italic;
+  font-size: 12px;
+}
+
 .tf-close-btn {
   margin-left: auto;
   padding: 5px 14px;
@@ -124,4 +188,102 @@
   font-size: 12px;
   font-weight: 600;
   color: #065f46;
+}
+
+/* ── Вложения ──────────────────────────────────── */
+.tf-attachments {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border: 1px solid #e0eeff;
+  border-radius: 6px;
+  background: #f8fbff;
+}
+
+.tf-attachments-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #3b82f6;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 10px;
+}
+
+.tf-attachments-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tf-attachment-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  max-width: 140px;
+}
+
+.tf-attachment-img {
+  width: 120px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #bfdbfe;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.tf-attachment-img:hover {
+  opacity: 0.85;
+}
+
+.tf-attachment-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  text-decoration: none;
+  color: #1e3a8a;
+  font-size: 12px;
+  font-weight: 500;
+  max-width: 200px;
+  transition: background 0.15s;
+}
+
+.tf-attachment-file:hover {
+  background: #dbeafe;
+}
+
+.tf-attachment-file-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.tf-attachment-name {
+  font-size: 11px;
+  color: #64748b;
+  text-align: center;
+  word-break: break-all;
+  max-width: 120px;
+}
+
+/* Lightbox overlay */
+.tf-lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  cursor: zoom-out;
+}
+
+.tf-lightbox img {
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 8px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
 }

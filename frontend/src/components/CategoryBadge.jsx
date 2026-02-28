@@ -4,7 +4,7 @@ const LABELS = {
   malfunction: 'Неисправность',
   calibration: 'Калибровка',
   documentation: 'Документация',
-  other: 'Прочее',
+  breakdown: 'Поломка',
 };
 
 export default function CategoryBadge({ value }) {

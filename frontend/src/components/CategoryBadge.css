@@ -10,4 +10,5 @@
 .category-badge--malfunction  { background: #fef3c7; color: #92400e; }
 .category-badge--calibration  { background: #dbeafe; color: #1e40af; }
 .category-badge--documentation{ background: #ede9fe; color: #6d28d9; }
+.category-badge--breakdown    { background: #fee2e2; color: #991b1b; }
 .category-badge--other        { background: #f1f5f9; color: #475569; }

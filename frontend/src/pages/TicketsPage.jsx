@@ -12,15 +12,18 @@ import './TicketsPage.css';
 const NAV_TABS = ['Запросы', 'База знаний', 'Статистика'];
 const SIDEBAR_MIN = 180;
 const SIDEBAR_MAX = 520;
+const CHAT_MIN = 120;
+const CHAT_MAX = 700;
 
 export default function TicketsPage() {
   const navigate = useNavigate();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
-  const [filters, setFilters] = useState({ status: '', sentiment: '', category: '', search: '' });
+  const [filters, setFilters] = useState({ status: 'open', sentiment: '', category: '', search: '' });
   const [activeTab, setActiveTab] = useState('Запросы');
   const [sidebarWidth, setSidebarWidth] = useState(280);
+  const [chatHeight, setChatHeight] = useState(350);
   const [showProfile, setShowProfile] = useState(false);
   const [profileData, setProfileData] = useState(null);
   const [tgIds, setTgIds] = useState([]);
@@ -29,6 +32,9 @@ export default function TicketsPage() {
   const dragging = useRef(false);
   const startX = useRef(0);
   const startW = useRef(0);
+  const vertDragging = useRef(false);
+  const vertStartY = useRef(0);
+  const vertStartH = useRef(0);
 
   useEffect(() => {
     if (!localStorage.getItem('auth')) navigate('/');
@@ -69,15 +75,30 @@ export default function TicketsPage() {
     document.body.style.userSelect = 'none';
   }, [sidebarWidth]);
 
+  const onVertMouseDown = useCallback((e) => {
+    vertDragging.current = true;
+    vertStartY.current = e.clientY;
+    vertStartH.current = chatHeight;
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  }, [chatHeight]);
+
   useEffect(() => {
     function onMove(e) {
-      if (!dragging.current) return;
-      const delta = e.clientX - startX.current;
-      const next = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, startW.current + delta));
-      setSidebarWidth(next);
+      if (dragging.current) {
+        const delta = e.clientX - startX.current;
+        const next = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, startW.current + delta));
+        setSidebarWidth(next);
+      }
+      if (vertDragging.current) {
+        const delta = e.clientY - vertStartY.current;
+        const next = Math.max(CHAT_MIN, Math.min(CHAT_MAX, vertStartH.current - delta));
+        setChatHeight(next);
+      }
     }
     function onUp() {
       dragging.current = false;
+      vertDragging.current = false;
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     }
@@ -140,20 +161,29 @@ export default function TicketsPage() {
     setFilters((prev) => ({ ...prev, [key]: value }));
   }
 
-  const displayedTickets = tickets.filter((t) => {
-    if (filters.status && t.status !== filters.status) return false;
-    if (filters.sentiment && t.sentiment !== filters.sentiment) return false;
-    if (filters.category && t.category !== filters.category) return false;
-    if (filters.search) {
-      const q = filters.search.toLowerCase();
-      if (
-        !(t.full_name || '').toLowerCase().includes(q) &&
-        !(t.summary || '').toLowerCase().includes(q) &&
-        !(t.email || '').toLowerCase().includes(q)
-      ) return false;
-    }
-    return true;
-  });
+  const CRITICAL_CATEGORIES = ['malfunction', 'breakdown'];
+
+  const displayedTickets = tickets
+    .filter((t) => {
+      if (filters.status === 'in_progress' && !['in_progress', 'needs_operator'].includes(t.status)) return false;
+      if (filters.status && filters.status !== 'in_progress' && t.status !== filters.status) return false;
+      if (filters.category && t.category !== filters.category) return false;
+      if (filters.sentiment && t.sentiment !== filters.sentiment) return false;
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        if (
+          !(t.full_name || '').toLowerCase().includes(q) &&
+          !(t.summary || '').toLowerCase().includes(q) &&
+          !(t.email || '').toLowerCase().includes(q)
+        ) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      const aCrit = CRITICAL_CATEGORIES.includes(a.category) ? 0 : 1;
+      const bCrit = CRITICAL_CATEGORIES.includes(b.category) ? 0 : 1;
+      return aCrit - bCrit;
+    });
 
   return (
     <div className="crm-layout">
@@ -256,8 +286,13 @@ export default function TicketsPage() {
             </div>
             <div className="crm-resize-handle" onMouseDown={onMouseDown} />
             <div className="crm-detail">
-              <TicketForm ticket={selected} onTicketUpdate={handleTicketUpdate} />
-              <ChatWindow ticket={selected} onTicketUpdate={handleTicketUpdate} />
+              <div className="crm-form-pane">
+                <TicketForm ticket={selected} onTicketUpdate={handleTicketUpdate} />
+              </div>
+              <div className="crm-vert-resize-handle" onMouseDown={onVertMouseDown} />
+              <div className="crm-chat-pane" style={{ height: chatHeight }}>
+                <ChatWindow ticket={selected} onTicketUpdate={handleTicketUpdate} />
+              </div>
             </div>
           </div>
         )

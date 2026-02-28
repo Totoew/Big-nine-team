@@ -33,6 +33,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      - uploads_data:/app/uploads
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
   frontend:
@@ -55,9 +56,10 @@ services:
       - backend
     env_file: ./tg_notification_bot/.env
     ports:
-      - "8182:8183"
+      - "8081:8081"
     volumes:
       - ./tg_notification_bot:/app
 
 volumes:
   postgres_data:
+  uploads_data:

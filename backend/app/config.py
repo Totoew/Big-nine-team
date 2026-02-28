@@ -9,6 +9,8 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
     BOT_SECRET: str = "change_me_bot_secret"
+    BOT_URL: str = "http://bot:8081"
+    FRONTEND_URL: str = "http://localhost:5173"
     GROQ_API_KEY: str = ""
 
     @property

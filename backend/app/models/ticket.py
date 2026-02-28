@@ -35,6 +35,7 @@ class Ticket(Base):
     assigned_to: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
     assignee: Mapped["User | None"] = relationship("User", back_populates="tickets", foreign_keys=[assigned_to])
     chat_messages: Mapped[list["ChatMessage"]] = relationship("ChatMessage", back_populates="ticket", cascade="all, delete-orphan")
+    attachments: Mapped[list["TicketAttachment"]] = relationship("TicketAttachment", back_populates="ticket", cascade="all, delete-orphan")
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

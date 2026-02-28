@@ -28,6 +28,15 @@ class TicketUpdate(BaseModel):
     status: str | None = None
     ai_response: str | None = None
     assigned_to: int | None = None
+    full_name: str | None = None
+    company: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    device_serials: list[str] | None = None
+    device_type: str | None = None
+    sentiment: str | None = None
+    category: str | None = None
+    summary: str | None = None
 
 
 class TicketCreate(BaseModel):

@@ -17,6 +17,16 @@ export async function fetchTicket(id) {
   return await res.json();
 }
 
+export async function patchTicket(id, fields) {
+  const res = await fetch(`${API_BASE}/api/tickets/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) throw new Error('Server error');
+  return await res.json();
+}
+
 export async function updateTicketResponse(id, text) {
   const res = await fetch(`${API_BASE}/api/tickets/${id}`, {
     method: 'PATCH',
@@ -95,4 +105,15 @@ export async function updateProfile(telegram_ids) {
   });
   if (!res.ok) throw new Error('Server error');
   return await res.json();
+}
+
+export async function fetchAttachments(ticketId) {
+  const res = await fetch(`${API_BASE}/api/tickets/${ticketId}/attachments`, { headers: authHeaders() });
+  if (!res.ok) throw new Error('Server error');
+  return await res.json();
+}
+
+export function attachmentDownloadUrl(attachmentId) {
+  const token = localStorage.getItem('token');
+  return `${API_BASE}/api/tickets/attachments/${attachmentId}/download?token=${encodeURIComponent(token || '')}`;
 }

@@ -26,7 +26,7 @@ async def analyze_ticket_with_ai(ticket_text: str) -> dict:
         logger.error("Groq client not initialized, returning fallback data")
         return {
             "sentiment": "neutral",
-            "category": "other",
+            "category": "malfunction",
             "full_name": None,
             "company": None,
             "phone": None,
@@ -47,7 +47,11 @@ async def analyze_ticket_with_ai(ticket_text: str) -> dict:
 
 Ответьте ТОЛЬКО в формате JSON со следующими ключами (все строки на русском, null если информация отсутствует):
 - "sentiment": "positive" | "neutral" | "negative" — эмоциональная тональность обращения
-- "category": "malfunction" | "calibration" | "documentation" | "other" — категория запроса
+- "category": "malfunction" | "calibration" | "documentation" | "breakdown" — категория запроса:
+  • "malfunction" — неисправность (прибор работает некорректно: ошибки показаний, сбои, нестабильная работа)
+  • "breakdown" — поломка (прибор полностью вышел из строя: не включается, физические повреждения, не реагирует)
+  • "calibration" — калибровка (поверка, настройка, регулировка показаний)
+  • "documentation" — документация (запрос паспорта, сертификата, инструкции, схем)
 - "full_name": строка или null — ФИО отправителя
 - "company": строка или null — название организации / объекта / предприятия
 - "phone": строка или null — номер телефона
@@ -84,9 +88,9 @@ async def analyze_ticket_with_ai(ticket_text: str) -> dict:
         if sentiment not in ["positive", "neutral", "negative"]:
             sentiment = "neutral"
 
-        category = result.get("category", "other").lower()
-        if category not in ["malfunction", "calibration", "documentation", "other"]:
-            category = "other"
+        category = result.get("category", "malfunction").lower()
+        if category not in ["malfunction", "calibration", "documentation", "breakdown"]:
+            category = "malfunction"
 
         device_serials = result.get("device_serials", [])
         if not isinstance(device_serials, list):
@@ -109,7 +113,7 @@ async def analyze_ticket_with_ai(ticket_text: str) -> dict:
         logger.error(f"Error during AI analysis: {e}")
         return {
             "sentiment": "neutral",
-            "category": "other",
+            "category": "malfunction",
             "full_name": None,
             "company": None,
             "phone": None,
@@ -121,10 +125,28 @@ async def analyze_ticket_with_ai(ticket_text: str) -> dict:
         }
 
 
-async def generate_chat_reply(ticket_context: str, chat_history: list[dict]) -> str:
+async def generate_chat_reply(
+    ticket_context: str,
+    chat_history: list[dict],
+    resolution_examples: list[dict] | None = None,
+) -> str:
     """Generate a contextual AI reply for the chat window."""
     if not groq_client:
         return "ИИ-помощник временно недоступен."
+
+    examples_block = ""
+    if resolution_examples:
+        examples_block = "\n\nПримеры успешно решённых похожих обращений:\n"
+        for i, ex in enumerate(resolution_examples, 1):
+            examples_block += (
+                f"\nПример {i}:\n"
+                f"Вопрос клиента: {ex['question'][:600]}\n"
+                f"Ответ оператора: {ex['answer'][:600]}\n"
+            )
+        examples_block += (
+            "\nИспользуйте эти примеры как ориентир при формулировке ответа, "
+            "адаптируя его под текущую ситуацию.\n"
+        )
 
     system_prompt = (
         "Вы — ИИ-агент технической поддержки компании ЭРИС (газоаналитическое оборудование). "
@@ -132,6 +154,7 @@ async def generate_chat_reply(ticket_context: str, chat_history: list[dict]) -> 
         "Отвечайте кратко и по существу на русском языке. "
         "Если не знаете точного ответа — скажите об этом и предложите варианты.\n\n"
         f"Контекст заявки:\n{ticket_context}"
+        f"{examples_block}"
     )
 
     messages = [{"role": "system", "content": system_prompt}]

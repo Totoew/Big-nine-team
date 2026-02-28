@@ -14,7 +14,7 @@ from aiogram.types import (
     InlineKeyboardMarkup, InlineKeyboardButton,
 )
 
-from config import BOT_TOKEN, BACKEND_URL, BOT_PORT, BOT_SECRET, UPDATE_INTERVAL
+from config import BOT_TOKEN, BACKEND_URL, FRONTEND_URL, BOT_PORT, BOT_SECRET, UPDATE_INTERVAL
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -249,10 +249,12 @@ async def cb_answer(callback: CallbackQuery):
 TONE_ICON = {"negative": "🔴 СРОЧНО", "positive": "🟢 ЗАПРОС", "neutral": "🟡 НОВОЕ"}
 CATEGORY_RU = {
     "malfunction": "Неисправность",
+    "breakdown": "Поломка",
     "calibration": "Калибровка",
     "documentation": "Документация",
     "other": "Прочее",
 }
+CRITICAL_CATEGORIES = {"malfunction", "breakdown"}
 
 
 def format_ticket_message(ticket: dict) -> str:
@@ -273,12 +275,55 @@ def format_ticket_message(ticket: dict) -> str:
     )
 
 
+def _is_public_url(url: str) -> bool:
+    return url.startswith("https://") or (
+        url.startswith("http://") and "localhost" not in url and "127.0.0.1" not in url
+    )
+
+
 def ticket_keyboard(ticket_id) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="👀 Открыть", url=f"http://localhost:5173/tickets"),
+    row = []
+    if _is_public_url(FRONTEND_URL):
+        row.append(InlineKeyboardButton(text="👀 Открыть", url=f"{FRONTEND_URL}/tickets"))
+    row += [
         InlineKeyboardButton(text="👤 Контакты", callback_data=f"contacts:{ticket_id}"),
         InlineKeyboardButton(text="🤖 Ответ AI", callback_data=f"answer:{ticket_id}"),
-    ]])
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=[row])
+
+
+def format_critical_message(ticket: dict) -> str:
+    ticket_id = ticket.get("id", "?")
+    category = ticket.get("category", "")
+    category_ru = CATEGORY_RU.get(category, category or "—")
+    category_icon = "🔧" if category == "malfunction" else "💥"
+    summary = ticket.get("summary") or ticket.get("description") or "—"
+    full_name = ticket.get("full_name") or "—"
+    email = ticket.get("email") or "—"
+    date_str = ticket.get("date_received", "")
+    if date_str:
+        try:
+            dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            date_str = dt.strftime("%d.%m.%Y, %H:%M")
+        except Exception:
+            pass
+    return (
+        f"🚨 <b>СРОЧНОЕ ОБРАЩЕНИЕ — #{ticket_id}</b>\n\n"
+        f"{category_icon} <b>Категория:</b> {category_ru}\n"
+        f"📋 <b>Тема:</b> {summary}\n"
+        f"🕐 <b>Время поступления:</b> {date_str}\n\n"
+        f"👤 <b>Отправитель:</b> {full_name}\n"
+        f"📧 <b>Email:</b> {email}\n\n"
+        "Требуется незамедлительная реакция оператора."
+    )
+
+
+def critical_keyboard(ticket_id) -> InlineKeyboardMarkup | None:
+    if _is_public_url(FRONTEND_URL):
+        return InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="🔍 Открыть обращение", url=f"{FRONTEND_URL}/tickets"),
+        ]])
+    return None
 
 
 # ── HTTP-сервер для вебхуков ─────────────────────────────────────
@@ -304,6 +349,47 @@ async def handle_webhook(request: web.Request) -> web.Response:
             logger.warning(f"Failed to send to {uid}: {e}")
 
     logger.info(f"Ticket #{ticket_id} notification sent to {sent} subscribers")
+    return web.json_response({"sent": sent})
+
+
+async def handle_notify_critical(request: web.Request) -> web.Response:
+    """Send critical ticket alert to ALL allowed operators (not just subscribers)."""
+    secret = request.headers.get("X-Bot-Secret", "")
+    if secret != BOT_SECRET:
+        return web.json_response({"error": "Forbidden"}, status=403)
+    try:
+        ticket = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+
+    category = ticket.get("category", "")
+    if category not in CRITICAL_CATEGORIES:
+        return web.json_response({"sent": 0, "reason": "not_critical"})
+
+    # Обновляем список операторов перед отправкой, чтобы не использовать устаревший кеш
+    await fetch_allowed_users()
+
+    ticket_id = ticket.get("id", "?")
+    text = format_critical_message(ticket)
+    keyboard = critical_keyboard(ticket_id)
+
+    recipients = allowed_users.copy()
+    if not recipients:
+        logger.warning(f"Critical alert for ticket #{ticket_id}: allowed_users is empty, nobody to notify")
+        return web.json_response({"sent": 0, "reason": "no_recipients"})
+
+    sent = 0
+    for uid in recipients:
+        try:
+            kwargs = {"parse_mode": "HTML"}
+            if keyboard:
+                kwargs["reply_markup"] = keyboard
+            await bot.send_message(uid, text, **kwargs)
+            sent += 1
+        except Exception as e:
+            logger.warning(f"Failed to send critical alert to {uid}: {e}")
+
+    logger.info(f"Critical alert for ticket #{ticket_id} sent to {sent}/{len(recipients)} operators")
     return web.json_response({"sent": sent})
 
 
@@ -333,6 +419,7 @@ async def main():
 
     app = web.Application()
     app.router.add_post("/webhook", handle_webhook)
+    app.router.add_post("/notify-critical", handle_notify_critical)
     app.router.add_get("/health", handle_health)
     app.router.add_get("/stats", handle_stats)
 

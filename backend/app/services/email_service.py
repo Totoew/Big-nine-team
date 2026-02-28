@@ -2,20 +2,30 @@ import asyncio
 import email
 import imaplib
 import logging
+import os
 import re
+import uuid
 from datetime import datetime, timezone
+from email import encoders
 from email.header import decode_header
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 import aiosmtplib
+import httpx
 from sqlalchemy import select, desc
 
 from app.config import settings
 from app.database import AsyncSessionLocal
 from app.models.chat_message import ChatMessage
 from app.models.ticket import Ticket
+from app.models.ticket_attachment import TicketAttachment
 from app.services.ai_service import analyze_ticket_with_ai, generate_chat_reply
+
+UPLOADS_DIR = "/app/uploads"
+
+CRITICAL_CATEGORIES = {"malfunction", "breakdown"}
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +97,31 @@ def _fetch_unseen_emails() -> list[dict]:
 
                 reply_ticket_id = _parse_ticket_id(subject)
 
+                # Extract attachments (skip text body and html body parts)
+                attachments = []
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        part_ct = part.get_content_type()
+                        part_disp = part.get("Content-Disposition", "")
+                        part_name = part.get_filename()
+                        # Skip container types
+                        if part.get_content_maintype() == "multipart":
+                            continue
+                        # Skip plain-text and HTML body parts (unless explicitly attached)
+                        if part_ct in ("text/plain", "text/html") and "attachment" not in part_disp:
+                            continue
+                        # Skip parts with no filename and no attachment disposition
+                        if not part_name and "attachment" not in part_disp:
+                            continue
+                        filename = _decode_header_value(part_name or "file")
+                        payload = part.get_payload(decode=True)
+                        if payload:
+                            attachments.append({
+                                "filename": filename,
+                                "content_type": part_ct or "application/octet-stream",
+                                "data": payload,
+                            })
+
                 imap.store(msg_id, "+FLAGS", "\\Seen")
 
                 messages.append({
@@ -96,11 +131,35 @@ def _fetch_unseen_emails() -> list[dict]:
                     "body": body,
                     "date": datetime.now(timezone.utc),
                     "reply_ticket_id": reply_ticket_id,
+                    "attachments": attachments,
                 })
     except Exception as e:
         logger.error(f"IMAP error: {e}")
 
     return messages
+
+
+async def _save_attachments(ticket_id: int, attachments: list[dict]) -> None:
+    """Save attachment files to disk and create DB records."""
+    if not attachments:
+        return
+    os.makedirs(UPLOADS_DIR, exist_ok=True)
+    async with AsyncSessionLocal() as session:
+        for att in attachments:
+            ext = os.path.splitext(att["filename"])[1] or ""
+            unique_name = f"{uuid.uuid4().hex}{ext}"
+            file_path = os.path.join(UPLOADS_DIR, unique_name)
+            with open(file_path, "wb") as f:
+                f.write(att["data"])
+            session.add(TicketAttachment(
+                ticket_id=ticket_id,
+                filename=att["filename"],
+                content_type=att["content_type"],
+                file_path=unique_name,
+                file_size=len(att["data"]),
+            ))
+        await session.commit()
+    logger.info(f"Saved {len(attachments)} attachment(s) for ticket #{ticket_id}")
 
 
 async def _find_open_ticket_by_email(sender_email: str) -> int | None:
@@ -117,6 +176,75 @@ async def _find_open_ticket_by_email(sender_email: str) -> int | None:
         return result.scalar_one_or_none()
 
 
+async def _notify_bot_critical(ticket: Ticket) -> None:
+    """Fire-and-forget: send critical ticket alert to all operators via TG bot."""
+    if ticket.category not in CRITICAL_CATEGORIES:
+        return
+    payload = {
+        "id": ticket.id,
+        "category": ticket.category,
+        "summary": ticket.summary,
+        "date_received": ticket.date_received.isoformat(),
+        "full_name": ticket.full_name,
+        "email": ticket.email,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.post(
+                f"{settings.BOT_URL}/notify-critical",
+                json=payload,
+                headers={"X-Bot-Secret": settings.BOT_SECRET},
+            )
+        result = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        sent = result.get("sent", 0)
+        reason = result.get("reason", "")
+        if sent > 0:
+            logger.info(f"Critical alert for ticket #{ticket.id}: sent to {sent} operators")
+        else:
+            logger.warning(f"Critical alert for ticket #{ticket.id}: 0 sent (reason={reason!r}, status={r.status_code})")
+    except Exception as e:
+        logger.warning(f"Failed to notify bot about ticket #{ticket.id}: {e}")
+
+
+async def get_resolution_examples(
+    category: str,
+    exclude_ticket_id: int | None = None,
+    limit: int = 3,
+) -> list[dict]:
+    """Return up to `limit` Q&A pairs from closed tickets of the same category for RAG context."""
+    async with AsyncSessionLocal() as session:
+        query = (
+            select(Ticket)
+            .where(Ticket.status == "closed", Ticket.category == category)
+        )
+        if exclude_ticket_id is not None:
+            query = query.where(Ticket.id != exclude_ticket_id)
+        query = query.order_by(desc(Ticket.updated_at)).limit(limit)
+
+        result = await session.execute(query)
+        tickets = result.scalars().all()
+
+        examples = []
+        for t in tickets:
+            msgs_result = await session.execute(
+                select(ChatMessage)
+                .where(
+                    ChatMessage.ticket_id == t.id,
+                    ChatMessage.role.in_(["user", "operator"]),
+                )
+                .order_by(ChatMessage.created_at)
+            )
+            msgs = msgs_result.scalars().all()
+            user_msgs = [m.text for m in msgs if m.role == "user"]
+            operator_msgs = [m.text for m in msgs if m.role == "operator"]
+            if user_msgs and operator_msgs:
+                examples.append({
+                    "question": user_msgs[0],
+                    "answer": operator_msgs[-1],
+                })
+        return examples
+
+
 async def _handle_email_reply(msg: dict, ticket_id: int) -> None:
     """Client replied to an existing ticket — add message to chat and generate AI response."""
     ticket_context = ""
@@ -127,6 +255,7 @@ async def _handle_email_reply(msg: dict, ticket_id: int) -> None:
             return
 
         ticket_context = t.original_email or t.summary or ""
+        ticket_category = t.category or "malfunction"
         session.add(ChatMessage(ticket_id=ticket_id, role="user", text=msg["body"]))
 
         if "вызвать оператора" in msg["body"].lower():
@@ -135,6 +264,8 @@ async def _handle_email_reply(msg: dict, ticket_id: int) -> None:
 
         await session.commit()
     logger.info(f"Added client reply to ticket #{ticket_id}")
+
+    await _save_attachments(ticket_id, msg.get("attachments", []))
 
     # Generate AI response to the new client message
     try:
@@ -149,7 +280,8 @@ async def _handle_email_reply(msg: dict, ticket_id: int) -> None:
             )
             history = [{"role": m.role, "text": m.text} for m in result.scalars().all()]
 
-        reply_text = await generate_chat_reply(ticket_context, history)
+        examples = await get_resolution_examples(ticket_category, exclude_ticket_id=ticket_id)
+        reply_text = await generate_chat_reply(ticket_context, history, resolution_examples=examples)
 
         async with AsyncSessionLocal() as session:
             session.add(ChatMessage(ticket_id=ticket_id, role="bot", text=reply_text))
@@ -176,6 +308,9 @@ async def _handle_new_email(msg: dict) -> None:
         await session.refresh(ticket)
         ticket_id = ticket.id
         ticket_text = ticket.original_email
+
+    # Save attachments independently — before AI, so they're always persisted
+    await _save_attachments(ticket_id, msg.get("attachments", []))
 
     try:
         ai_result = await analyze_ticket_with_ai(ticket_text)
@@ -206,6 +341,12 @@ async def _handle_new_email(msg: dict) -> None:
             await session.commit()
 
         logger.info(f"AI response saved to AI chat for ticket #{ticket_id} (not sent to client)")
+
+        # Уведомить операторов в TG о критической заявке
+        async with AsyncSessionLocal() as session:
+            t = await session.get(Ticket, ticket_id)
+            if t:
+                await _notify_bot_critical(t)
 
     except Exception as e:
         logger.error(f"Error processing new email → ticket #{ticket_id}: {e}")
