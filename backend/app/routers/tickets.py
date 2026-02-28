@@ -178,13 +178,49 @@ async def add_chat_message(
     return msg
 
 
+@router.post("/{ticket_id}/ai-chat", response_model=ChatMessageOut, status_code=status.HTTP_201_CREATED)
+async def ask_ai_assistant(
+    ticket_id: int,
+    payload: ChatMessageCreate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Operator asks AI — saves ai_query + bot response. Does NOT email client."""
+    ticket = await db.get(Ticket, ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Заявка не найдена")
+
+    query_msg = ChatMessage(ticket_id=ticket_id, role="ai_query", text=payload.text)
+    db.add(query_msg)
+    await db.commit()
+
+    result = await db.execute(
+        select(ChatMessage)
+        .where(
+            ChatMessage.ticket_id == ticket_id,
+            ChatMessage.role.in_(["user", "bot", "ai_query"]),
+        )
+        .order_by(ChatMessage.created_at)
+    )
+    history = [{"role": m.role, "text": m.text} for m in result.scalars().all()]
+
+    ticket_context = ticket.original_email or ticket.summary or ""
+    reply_text = await generate_chat_reply(ticket_context, history)
+
+    bot_msg = ChatMessage(ticket_id=ticket_id, role="bot", text=reply_text)
+    db.add(bot_msg)
+    await db.commit()
+    await db.refresh(bot_msg)
+    return bot_msg
+
+
 @router.post("/{ticket_id}/chat/reply", response_model=ChatMessageOut, status_code=status.HTTP_201_CREATED)
 async def ai_chat_reply(
     ticket_id: int,
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    """Generate and save an AI bot reply based on the full chat history."""
+    """Legacy endpoint — kept for compatibility."""
     ticket = await db.get(Ticket, ticket_id)
     if not ticket:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
@@ -203,12 +239,4 @@ async def ai_chat_reply(
     db.add(bot_msg)
     await db.commit()
     await db.refresh(bot_msg)
-
-    # Email client the AI reply
-    if ticket.email:
-        try:
-            await send_chat_message_to_client(ticket.email, reply_text, ticket_id)
-        except Exception as exc:
-            logger.warning(f"Failed to email client AI reply for ticket {ticket_id}: {exc}")
-
     return bot_msg

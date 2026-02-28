@@ -15,7 +15,7 @@ from app.config import settings
 from app.database import AsyncSessionLocal
 from app.models.chat_message import ChatMessage
 from app.models.ticket import Ticket
-from app.services.ai_service import analyze_ticket_with_ai
+from app.services.ai_service import analyze_ticket_with_ai, generate_chat_reply
 
 logger = logging.getLogger(__name__)
 
@@ -118,12 +118,15 @@ async def _find_open_ticket_by_email(sender_email: str) -> int | None:
 
 
 async def _handle_email_reply(msg: dict, ticket_id: int) -> None:
-    """Client replied to an existing ticket — add message to chat."""
+    """Client replied to an existing ticket — add message to chat and generate AI response."""
+    ticket_context = ""
+
     async with AsyncSessionLocal() as session:
         t = await session.get(Ticket, ticket_id)
         if not t or t.status == "closed":
             return
 
+        ticket_context = t.original_email or t.summary or ""
         session.add(ChatMessage(ticket_id=ticket_id, role="user", text=msg["body"]))
 
         if "вызвать оператора" in msg["body"].lower():
@@ -132,6 +135,29 @@ async def _handle_email_reply(msg: dict, ticket_id: int) -> None:
 
         await session.commit()
     logger.info(f"Added client reply to ticket #{ticket_id}")
+
+    # Generate AI response to the new client message
+    try:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(ChatMessage)
+                .where(
+                    ChatMessage.ticket_id == ticket_id,
+                    ChatMessage.role.in_(["user", "bot", "ai_query"]),
+                )
+                .order_by(ChatMessage.created_at)
+            )
+            history = [{"role": m.role, "text": m.text} for m in result.scalars().all()]
+
+        reply_text = await generate_chat_reply(ticket_context, history)
+
+        async with AsyncSessionLocal() as session:
+            session.add(ChatMessage(ticket_id=ticket_id, role="bot", text=reply_text))
+            await session.commit()
+
+        logger.info(f"AI reply generated for ticket #{ticket_id}")
+    except Exception as e:
+        logger.error(f"AI reply error for ticket #{ticket_id}: {e}")
 
 
 async def _handle_new_email(msg: dict) -> None:
@@ -168,8 +194,7 @@ async def _handle_new_email(msg: dict) -> None:
                 t.summary = ai_result.get("summary")
                 await session.commit()
 
-        draft = ai_result.get("draft_response", "")
-        bot_text = draft + "\n\n💡 Если нужно вызвать оператора, напишите — вызвать оператора"
+        bot_text = ai_result.get("draft_response", "")
 
         async with AsyncSessionLocal() as session:
             session.add(ChatMessage(
@@ -180,8 +205,7 @@ async def _handle_new_email(msg: dict) -> None:
             session.add(ChatMessage(ticket_id=ticket_id, role="bot", text=bot_text))
             await session.commit()
 
-        if msg.get("email"):
-            await send_chat_message_to_client(msg["email"], bot_text, ticket_id)
+        logger.info(f"AI response saved to AI chat for ticket #{ticket_id} (not sent to client)")
 
     except Exception as e:
         logger.error(f"Error processing new email → ticket #{ticket_id}: {e}")

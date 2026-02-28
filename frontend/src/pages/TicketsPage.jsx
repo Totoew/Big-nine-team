@@ -48,6 +48,19 @@ export default function TicketsPage() {
       });
   }, [navigate]);
 
+  // Poll for new/updated tickets every 10 seconds
+  useEffect(() => {
+    const id = setInterval(() => {
+      fetchTickets()
+        .then((data) => {
+          setTickets(data);
+          setSelected((prev) => prev ? (data.find((t) => t.id === prev.id) ?? prev) : null);
+        })
+        .catch(() => {});
+    }, 10000);
+    return () => clearInterval(id);
+  }, []);
+
   const onMouseDown = useCallback((e) => {
     dragging.current = true;
     startX.current = e.clientX;

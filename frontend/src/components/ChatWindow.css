@@ -16,33 +16,55 @@
   font-size: 14px;
 }
 
-.chat-header {
-  padding: 10px 20px;
+/* ── Tabs ──────────────────────────────────────────── */
+.chat-tabs {
+  display: flex;
   border-bottom: 1px solid #dbeafe;
   background: #eff6ff;
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
 }
 
-.chat-title {
-  font-size: 11px;
-  font-weight: 800;
-  color: #1e40af;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.chat-status-badge {
-  font-size: 11px;
+.chat-tab-btn {
+  flex: 1;
+  padding: 9px 12px;
+  border: none;
+  background: none;
+  font-size: 12px;
   font-weight: 600;
-  color: #065f46;
-  background: #d1fae5;
-  padding: 2px 8px;
-  border-radius: 10px;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.12s;
+  font-family: inherit;
+  letter-spacing: 0.3px;
 }
 
+.chat-tab-btn:hover {
+  background: rgba(37, 99, 235, 0.05);
+  color: #1e40af;
+}
+
+.chat-tab-btn--active {
+  color: #1e40af;
+  box-shadow: inset 0 -2px 0 #2563eb;
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.chat-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  background: #ef4444;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+
+/* ── Messages ─────────────────────────────────────── */
 .chat-messages {
   flex: 1;
   overflow-y: auto;
@@ -59,19 +81,12 @@
   max-width: 82%;
 }
 
-/* Client (incoming) — LEFT */
-.chat-bubble--user {
+/* Alignment — controlled by --in / --out classes (set in JSX based on active tab) */
+.chat-bubble--in {
   align-self: flex-start;
 }
 
-/* AI bot (outgoing) — RIGHT */
-.chat-bubble--bot {
-  align-self: flex-end;
-  flex-direction: row-reverse;
-}
-
-/* Human operator (outgoing) — RIGHT */
-.chat-bubble--operator {
+.chat-bubble--out {
   align-self: flex-end;
   flex-direction: row-reverse;
 }
@@ -91,7 +106,7 @@
   white-space: pre-wrap;
 }
 
-/* Client message — white/light */
+/* Client message — white */
 .chat-bubble--user .chat-text {
   background: #fff;
   color: #1e293b;
@@ -100,15 +115,15 @@
   box-shadow: 0 1px 3px rgba(0,0,0,0.07);
 }
 
-/* AI bot message — blue gradient */
+/* AI bot response — blue */
 .chat-bubble--bot .chat-text {
   background: linear-gradient(135deg, #2563eb, #1d4ed8);
   color: #fff;
-  border-bottom-right-radius: 4px;
+  border-bottom-left-radius: 4px;
   box-shadow: 0 2px 6px rgba(37,99,235,0.3);
 }
 
-/* Operator message — green */
+/* Operator → client message — green */
 .chat-bubble--operator .chat-text {
   background: linear-gradient(135deg, #059669, #047857);
   color: #fff;
@@ -116,6 +131,15 @@
   box-shadow: 0 2px 6px rgba(5,150,105,0.3);
 }
 
+/* Operator → AI question — indigo */
+.chat-bubble--ai_query .chat-text {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+  box-shadow: 0 2px 6px rgba(99,102,241,0.3);
+}
+
+/* ── Input ────────────────────────────────────────── */
 .chat-input-row {
   display: flex;
   gap: 8px;
@@ -158,6 +182,12 @@
   white-space: nowrap;
   font-family: inherit;
   box-shadow: 0 2px 6px rgba(5,150,105,0.25);
+}
+
+/* AI tab send button — indigo */
+.chat-send-btn--ai {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  box-shadow: 0 2px 6px rgba(99,102,241,0.25);
 }
 
 .chat-send-btn:hover:not(:disabled) {
