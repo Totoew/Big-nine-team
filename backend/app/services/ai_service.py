@@ -47,11 +47,12 @@ async def analyze_ticket_with_ai(ticket_text: str) -> dict:
 
 Ответьте ТОЛЬКО в формате JSON со следующими ключами (все строки на русском, null если информация отсутствует):
 - "sentiment": "positive" | "neutral" | "negative" — эмоциональная тональность обращения
-- "category": "malfunction" | "calibration" | "documentation" | "breakdown" — категория запроса:
+- "category": "malfunction" | "calibration" | "documentation" | "breakdown" | "other" — категория запроса:
   • "malfunction" — неисправность (прибор работает некорректно: ошибки показаний, сбои, нестабильная работа)
   • "breakdown" — поломка (прибор полностью вышел из строя: не включается, физические повреждения, не реагирует)
   • "calibration" — калибровка (поверка, настройка, регулировка показаний)
   • "documentation" — документация (запрос паспорта, сертификата, инструкции, схем)
+  • "other" — другое (обращение не подходит ни под одну из перечисленных категорий)
 - "full_name": строка или null — ФИО отправителя
 - "company": строка или null — название организации / объекта / предприятия
 - "phone": строка или null — номер телефона
@@ -88,9 +89,9 @@ async def analyze_ticket_with_ai(ticket_text: str) -> dict:
         if sentiment not in ["positive", "neutral", "negative"]:
             sentiment = "neutral"
 
-        category = result.get("category", "malfunction").lower()
-        if category not in ["malfunction", "calibration", "documentation", "breakdown"]:
-            category = "malfunction"
+        category = result.get("category", "other").lower()
+        if category not in ["malfunction", "calibration", "documentation", "breakdown", "other"]:
+            category = "other"
 
         device_serials = result.get("device_serials", [])
         if not isinstance(device_serials, list):

@@ -4,7 +4,6 @@ import CategoryBadge from './CategoryBadge';
 import { updateTicketStatus, patchTicket, fetchAttachments, attachmentDownloadUrl } from '../api/tickets';
 import './TicketForm.css';
 
-const SENTIMENT_EMOJI = { positive: '😊', neutral: '😐', negative: '😠' };
 const STATUS_LABEL = {
   open: 'Открыто 🆕',
   in_progress: 'В процессе ⏳',
@@ -112,9 +111,9 @@ export default function TicketForm({ ticket, onTicketUpdate }) {
             disabled={saving}
             onChange={(e) => saveField(field, e.target.value)}
           >
-            <option value="positive">😊 Позитивная</option>
-            <option value="neutral">😐 Нейтральная</option>
-            <option value="negative">😠 Негативная</option>
+            <option value="positive">Позитивная</option>
+            <option value="neutral">Нейтральная</option>
+            <option value="negative">Негативная</option>
           </select>
         );
       } else if (editType === 'select-category') {
@@ -220,11 +219,7 @@ export default function TicketForm({ ticket, onTicketUpdate }) {
             <tr>
               <td className="tf-label-cell">Эмоциональный окрас</td>
               {valCell('sentiment', ticket.sentiment, {
-                display: (
-                  <span className="tf-sent-cell">
-                    {SENTIMENT_EMOJI[ticket.sentiment]} <SentimentBadge value={ticket.sentiment} />
-                  </span>
-                ),
+                display: <SentimentBadge value={ticket.sentiment} />,
                 editType: 'select-sentiment',
               })}
               <td className="tf-label-cell">Категория запроса</td>

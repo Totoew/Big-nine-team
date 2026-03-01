@@ -2,8 +2,10 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
+
+EKATERINBURG_TZ = timezone(timedelta(hours=5))
 
 import httpx
 from aiohttp import web
@@ -102,31 +104,31 @@ async def cmd_start(message: Message):
         return
     await message.answer(
         "👋 <b>ЭРИС — Служба технической поддержки</b>\n\n"
-        "Бот для уведомлений о новых обращениях.\n\n"
+        "Бот для уведомлений о критических обращениях.\n\n"
         "📋 <b>Команды:</b>\n"
-        "/subscribe — подписаться на уведомления\n"
-        "/unsubscribe — отписаться\n"
+        "/start_shift — начать смену (включить уведомления)\n"
+        "/end_shift — закончить смену (отключить уведомления)\n"
         "/status — статус подключения\n"
         "/help — справка",
         parse_mode="HTML",
     )
 
 
-@dp.message(Command("subscribe"))
-async def cmd_subscribe(message: Message):
+@dp.message(Command("start_shift"))
+async def cmd_start_shift(message: Message):
     if not is_allowed(message.from_user.id):
         await message.answer("⛔ Доступ запрещён.")
         return
     subscribers.add(message.from_user.id)
     save_subscriptions()
-    await message.answer("✅ Вы подписались на уведомления о новых обращениях.")
+    await message.answer("✅ <b>Смена начата.</b> Вы будете получать уведомления о критических обращениях.", parse_mode="HTML")
 
 
-@dp.message(Command("unsubscribe"))
-async def cmd_unsubscribe(message: Message):
+@dp.message(Command("end_shift"))
+async def cmd_end_shift(message: Message):
     subscribers.discard(message.from_user.id)
     save_subscriptions()
-    await message.answer("🔕 Вы отписались от уведомлений.")
+    await message.answer("🔕 <b>Смена завершена.</b> Уведомления отключены.", parse_mode="HTML")
 
 
 @dp.message(Command("status"))
@@ -144,8 +146,8 @@ async def cmd_status(message: Message):
     await message.answer(
         f"📊 <b>Статус</b>\n\n"
         f"Бэкенд: {'🟢 доступен' if backend_ok else '🔴 недоступен'}\n"
-        f"Подписка: {'✅ активна' if is_sub else '⏸ отключена'}\n"
-        f"Подписчиков всего: {len(subscribers)}",
+        f"Смена: {'✅ активна' if is_sub else '⏸ не начата'}\n"
+        f"Операторов на смене: {len(subscribers)}",
         parse_mode="HTML",
     )
 
@@ -157,8 +159,8 @@ async def cmd_help(message: Message):
         return
     text = (
         "📖 <b>Справка</b>\n\n"
-        "/subscribe — подписаться на уведомления\n"
-        "/unsubscribe — отписаться\n"
+        "/start_shift — начать смену (включить уведомления)\n"
+        "/end_shift — закончить смену (отключить уведомления)\n"
         "/status — статус бота и бэкенда\n"
     )
     if is_admin(message.from_user.id):
@@ -252,7 +254,7 @@ CATEGORY_RU = {
     "breakdown": "Поломка",
     "calibration": "Калибровка",
     "documentation": "Документация",
-    "other": "Прочее",
+    "other": "Другое",
 }
 CRITICAL_CATEGORIES = {"malfunction", "breakdown"}
 
@@ -304,7 +306,8 @@ def format_critical_message(ticket: dict) -> str:
     if date_str:
         try:
             dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-            date_str = dt.strftime("%d.%m.%Y, %H:%M")
+            dt_ekb = dt.astimezone(EKATERINBURG_TZ)
+            date_str = dt_ekb.strftime("%d.%m.%Y, %H:%M") + " (ЕКБ)"
         except Exception:
             pass
     return (
@@ -353,7 +356,7 @@ async def handle_webhook(request: web.Request) -> web.Response:
 
 
 async def handle_notify_critical(request: web.Request) -> web.Response:
-    """Send critical ticket alert to ALL allowed operators (not just subscribers)."""
+    """Send critical ticket alert to operators currently on shift (subscribers)."""
     secret = request.headers.get("X-Bot-Secret", "")
     if secret != BOT_SECRET:
         return web.json_response({"error": "Forbidden"}, status=403)
@@ -366,16 +369,13 @@ async def handle_notify_critical(request: web.Request) -> web.Response:
     if category not in CRITICAL_CATEGORIES:
         return web.json_response({"sent": 0, "reason": "not_critical"})
 
-    # Обновляем список операторов перед отправкой, чтобы не использовать устаревший кеш
-    await fetch_allowed_users()
-
     ticket_id = ticket.get("id", "?")
     text = format_critical_message(ticket)
     keyboard = critical_keyboard(ticket_id)
 
-    recipients = allowed_users.copy()
+    recipients = subscribers.copy()
     if not recipients:
-        logger.warning(f"Critical alert for ticket #{ticket_id}: allowed_users is empty, nobody to notify")
+        logger.warning(f"Critical alert for ticket #{ticket_id}: no operators on shift, nobody to notify")
         return web.json_response({"sent": 0, "reason": "no_recipients"})
 
     sent = 0

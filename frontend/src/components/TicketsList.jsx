@@ -81,6 +81,7 @@ export default function TicketsList({ tickets, selectedId, onSelect, filters, on
             <option value="calibration">Калибровка</option>
             <option value="documentation">Документация</option>
             <option value="breakdown">Поломка</option>
+            <option value="other">Другое</option>
           </select>
         </div>
       </div>

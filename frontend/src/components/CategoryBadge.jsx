@@ -5,6 +5,7 @@ const LABELS = {
   calibration: 'Калибровка',
   documentation: 'Документация',
   breakdown: 'Поломка',
+  other: 'Другое',
 };
 
 export default function CategoryBadge({ value }) {

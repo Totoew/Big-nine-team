@@ -3,16 +3,45 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #60a5fa 100%);
+  background: linear-gradient(135deg, #0f2460 0%, #1e3a8a 35%, #2563eb 70%, #3b82f6 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Decorative blobs */
+.login-page::before {
+  content: '';
+  position: absolute;
+  top: -120px;
+  right: -120px;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(59,130,246,0.25) 0%, transparent 70%);
+  border-radius: 50%;
+}
+
+.login-page::after {
+  content: '';
+  position: absolute;
+  bottom: -100px;
+  left: -100px;
+  width: 350px;
+  height: 350px;
+  background: radial-gradient(circle, rgba(99,102,241,0.2) 0%, transparent 70%);
+  border-radius: 50%;
 }
 
 .login-card {
   background: #fff;
-  border-radius: 18px;
-  padding: 40px 48px;
-  width: 400px;
-  max-width: 90vw;
-  box-shadow: 0 20px 60px rgba(30, 58, 138, 0.3);
+  border-radius: 20px;
+  padding: 44px 50px;
+  width: 420px;
+  max-width: 92vw;
+  box-shadow:
+    0 24px 80px rgba(15, 36, 96, 0.4),
+    0 0 0 1px rgba(255,255,255,0.12);
+  position: relative;
+  z-index: 1;
 }
 
 .login-logo {
@@ -24,77 +53,87 @@
 }
 
 .login-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: #111827;
+  font-size: 21px;
+  font-weight: 800;
+  color: #0f172a;
   margin: 0 0 5px;
 }
 
 .login-subtitle {
   font-size: 13px;
   color: #64748b;
-  margin: 0 0 28px;
+  margin: 0 0 30px;
 }
 
 .login-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 
 .login-field {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
 }
 
 .login-field label {
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 800;
   color: #1e40af;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.7px;
 }
 
 .login-field input {
-  padding: 10px 13px;
-  border: 1.5px solid #bfdbfe;
-  border-radius: 8px;
+  padding: 11px 14px;
+  border: 2px solid #dbeafe;
+  border-radius: 10px;
   font-size: 14px;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
   background: #f8fbff;
   color: #1e293b;
+  font-family: inherit;
 }
 
 .login-field input:focus {
   border-color: #2563eb;
   background: #fff;
+  box-shadow: 0 0 0 4px rgba(37,99,235,0.12);
 }
 
 .login-error {
   font-size: 13px;
   color: #dc2626;
-  background: #fee2e2;
-  padding: 8px 12px;
-  border-radius: 7px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  padding: 10px 14px;
+  border-radius: 9px;
+  font-weight: 500;
 }
 
 .login-btn {
-  padding: 11px;
+  padding: 12px;
   background: linear-gradient(135deg, #1e3a8a, #2563eb);
   color: #fff;
   border: none;
-  border-radius: 9px;
+  border-radius: 11px;
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, transform 0.1s;
   margin-top: 4px;
-  letter-spacing: 0.3px;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+  letter-spacing: 0.4px;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+  font-family: inherit;
 }
 
 .login-btn:hover {
-  opacity: 0.9;
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.login-btn:active {
+  transform: translateY(0);
 }
