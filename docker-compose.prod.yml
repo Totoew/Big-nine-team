@@ -1,0 +1,61 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: eris_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: eris
+      POSTGRES_USER: eris
+      POSTGRES_PASSWORD: eris_secret
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eris -d eris"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: eris_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://eris:eris_secret@db:5432/eris
+      CORS_ORIGINS: http://148.253.210.27
+      FRONTEND_URL: http://148.253.210.27
+    volumes:
+      - uploads_data:/app/uploads
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://148.253.210.27
+    container_name: eris_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+  telegram_bot:
+    build: ./tg_notification_bot
+    container_name: eris_tgbot
+    restart: unless-stopped
+    depends_on:
+      - backend
+    env_file: ./tg_notification_bot/.env
+    environment:
+      BACKEND_URL: http://backend:8000
+      FRONTEND_URL: http://148.253.210.27
+    volumes:
+      - ./tg_notification_bot/subscriptions.json:/app/subscriptions.json
+
+volumes:
+  postgres_data:
+  uploads_data:
