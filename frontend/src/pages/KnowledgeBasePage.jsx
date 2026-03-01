@@ -40,26 +40,97 @@ const FAQ_ITEMS = [
   },
 ];
 
+const MANUALS = [
+  {
+    title: 'Руководство по эксплуатации ДГС ЭРИС-230',
+    size: '4.58 МБ',
+    url: 'https://eriskip.com/uploads/files/en/1/120/dgs-230-manual-en.pdf',
+  },
+  {
+    title: 'Руководство по эксплуатации ДГС ЭРИС-210',
+    size: '4.12 МБ',
+    url: 'https://eriskip.com/uploads/files/ru/1/121/dgs-210-manual-en.pdf',
+  },
+  {
+    title: 'Руководство по эксплуатации ПГ ЭРИС-414',
+    size: '1.07 МБ',
+    url: 'https://eriskip.com/uploads/files/en/1/122/eris-pg-414-manual-en-v1.pdf',
+  },
+];
+
+const SOLUTIONS = [
+  {
+    title: 'Техническое описание ДГС ЭРИС-230',
+    size: '2.84 МБ',
+    url: 'https://eriskip.com/uploads/files/en/1/199/dgs-eris-230.pdf',
+  },
+  {
+    title: 'Техническое описание ДГС ЭРИС-210',
+    size: '2.71 МБ',
+    url: 'https://eriskip.com/uploads/files/en/1/198/dgs-eris-210.pdf',
+  },
+  {
+    title: 'Техническое описание ПГ ЭРИС-414',
+    size: '5.60 МБ',
+    url: 'https://eriskip.com/uploads/files/en/4/204/pg-eris-414-a4.pdf',
+  },
+];
+
 const SECTIONS = [
   {
     id: 'manuals',
     title: 'Руководства по эксплуатации',
     description: 'Технические руководства и инструкции по приборам ЭРИС',
-    available: false,
+    count: MANUALS.length,
+    available: true,
   },
   {
     id: 'faq',
     title: 'Часто задаваемые вопросы',
     description: 'Типовые вопросы и готовые ответы для операторов',
+    count: FAQ_ITEMS.length,
     available: true,
   },
   {
     id: 'solutions',
     title: 'База решений',
-    description: 'История обращений и найденных решений для повторяющихся проблем',
-    available: false,
+    description: 'Технические описания и справочные материалы по оборудованию',
+    count: SOLUTIONS.length,
+    available: true,
   },
 ];
+
+function FilePanel({ title, files, onClose }) {
+  return (
+    <div className="kb-overlay" onClick={onClose}>
+      <div className="kb-faq-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="kb-faq-panel-header">
+          <span className="kb-faq-panel-title">{title}</span>
+          <button className="kb-faq-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="kb-file-list">
+          {files.map((file, i) => (
+            <div key={i} className="kb-file-item">
+              <div className="kb-file-icon">PDF</div>
+              <div className="kb-file-info">
+                <div className="kb-file-title">{file.title}</div>
+                <div className="kb-file-meta">{file.size}</div>
+              </div>
+              <a
+                href={file.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="kb-file-download"
+              >
+                Скачать
+              </a>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function FaqPanel({ onClose }) {
   const [openIdx, setOpenIdx] = useState(null);
@@ -96,7 +167,11 @@ function FaqPanel({ onClose }) {
 }
 
 export default function KnowledgeBasePage() {
-  const [showFaq, setShowFaq] = useState(false);
+  const [openPanel, setOpenPanel] = useState(null);
+
+  function handleCardClick(id) {
+    setOpenPanel(id);
+  }
 
   return (
     <div className="kb-page">
@@ -109,18 +184,35 @@ export default function KnowledgeBasePage() {
         {SECTIONS.map((section) => (
           <div
             key={section.id}
-            className={`kb-card ${section.available ? 'kb-card--active' : ''}`}
-            onClick={() => section.available && section.id === 'faq' && setShowFaq(true)}
+            className="kb-card kb-card--active"
+            onClick={() => handleCardClick(section.id)}
           >
             <div className="kb-card-body">
               <div className="kb-card-title">{section.title}</div>
               <div className="kb-card-desc">{section.description}</div>
+              <div className="kb-card-count">{section.count} {section.id === 'faq' ? 'вопросов' : 'файлов'}</div>
             </div>
           </div>
         ))}
       </div>
 
-      {showFaq && <FaqPanel onClose={() => setShowFaq(false)} />}
+      {openPanel === 'manuals' && (
+        <FilePanel
+          title="Руководства по эксплуатации"
+          files={MANUALS}
+          onClose={() => setOpenPanel(null)}
+        />
+      )}
+      {openPanel === 'faq' && (
+        <FaqPanel onClose={() => setOpenPanel(null)} />
+      )}
+      {openPanel === 'solutions' && (
+        <FilePanel
+          title="База решений"
+          files={SOLUTIONS}
+          onClose={() => setOpenPanel(null)}
+        />
+      )}
     </div>
   );
 }
